@@ -113,6 +113,7 @@ mod imp {
             }
 
             self.setup_actions();
+            self.setup_window_size();
 
             self.obj()
                 .change_action_state("night-mode", &self.settings.boolean("night-mode").into());
@@ -120,6 +121,7 @@ mod imp {
 
         fn dispose(&self) {
             self.default_settings.apply();
+            self.save_window_state();
             self.clear_local_uri();
         }
     }
@@ -145,6 +147,70 @@ mod imp {
     impl AdwApplicationWindowImpl for PpsWindow {}
 
     impl PpsWindow {
+        #[cfg(target_os = "windows")]
+        fn window_state_filename(create: bool) -> PathBuf {
+            let directory = glib::user_config_dir().join("papers");
+
+            if create {
+                glib::mkdir_with_parents(&directory, 0o700);
+            }
+
+            directory.join("window-state.ini")
+        }
+
+        #[cfg(target_os = "windows")]
+        fn restore_window_state(&self) {
+            let key_file = glib::KeyFile::new();
+            let filename = Self::window_state_filename(false);
+
+            if let Err(error) = key_file.load_from_file(&filename, glib::KeyFileFlags::NONE) {
+                if !error.matches(glib::FileError::Noent) {
+                    glib::g_warning!("", "Failed to load window state: {}", error.message());
+                }
+                return;
+            }
+
+            if let Ok(width) = key_file.integer("Window", "width") {
+                let _ = self.default_settings.set_int("window-width", width);
+            }
+            if let Ok(height) = key_file.integer("Window", "height") {
+                let _ = self.default_settings.set_int("window-height", height);
+            }
+            if let Ok(maximized) = key_file.boolean("Window", "maximized") {
+                let _ = self
+                    .default_settings
+                    .set_boolean("window-maximized", maximized);
+            }
+        }
+
+        #[cfg(target_os = "windows")]
+        fn save_window_state(&self) {
+            let key_file = glib::KeyFile::new();
+            let filename = Self::window_state_filename(true);
+
+            key_file.set_integer(
+                "Window",
+                "width",
+                self.default_settings.int("window-width"),
+            );
+            key_file.set_integer(
+                "Window",
+                "height",
+                self.default_settings.int("window-height"),
+            );
+            key_file.set_boolean("Window", "maximized", self.obj().is_maximized());
+
+            if let Err(error) = key_file.save_to_file(filename) {
+                glib::g_warning!("", "Failed to save window state: {}", error.message());
+            }
+        }
+
+        #[cfg(not(target_os = "windows"))]
+        fn restore_window_state(&self) {}
+
+        #[cfg(not(target_os = "windows"))]
+        fn save_window_state(&self) {}
+
         // field getter
         fn load_job(&self) -> Option<JobLoad> {
             self.load_job.borrow().clone()
@@ -796,6 +862,7 @@ mod imp {
                     self,
                     move || {
                         obj.default_settings.delay();
+                        obj.restore_window_state();
                         obj.default_settings
                             .bind("window-width", &window, "default-width")
                             .build();
@@ -863,8 +930,6 @@ mod imp {
 
             self.set_filenames(file.as_ref());
             self.init_metadata_with_default_values(file.as_ref());
-
-            self.setup_window_size();
 
             let load_job = papers_view::JobLoad::new();
             load_job.set_uri(uri);
