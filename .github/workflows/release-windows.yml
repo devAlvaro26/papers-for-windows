@@ -18,7 +18,7 @@ jobs:
     runs-on: windows-latest
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
         with:
           submodules: recursive
 
@@ -76,7 +76,7 @@ jobs:
           }
 
       - name: Upload Dist Artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v5
         with:
           name: dist-staged
           path: dist/
@@ -88,7 +88,7 @@ jobs:
     runs-on: windows-latest
     steps:
       - name: Download Dist Staged Artifact
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v5
         with:
           name: dist-staged
           path: dist/
@@ -100,7 +100,7 @@ jobs:
           Compress-Archive -Path dist\* -DestinationPath "papers-$slug-portable-x64.zip"
 
       - name: Upload Portable Zip Artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v5
         with:
           name: papers-windows-x86_64-portable
           path: papers-*-portable-x64.zip
@@ -112,10 +112,10 @@ jobs:
     runs-on: windows-latest
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
       - name: Download Dist Staged Artifact
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v5
         with:
           name: dist-staged
           path: dist/
@@ -154,7 +154,7 @@ jobs:
           }
 
       - name: Upload Setup Installer Artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v5
         with:
           name: papers-windows-x86_64-setup
           path: papers-*-installer-x64.exe
@@ -169,12 +169,12 @@ jobs:
       contents: write
     steps:
       - name: Download Portable Artifact
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v5
         with:
           name: papers-windows-x86_64-portable
 
       - name: Download Setup Artifact
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v5
         with:
           name: papers-windows-x86_64-setup
 
