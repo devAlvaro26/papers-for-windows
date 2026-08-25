@@ -58,6 +58,8 @@ impl imp::PpsDocumentView {
             .dynamic_cast_ref::<DocumentAnnotations>()
             .is_some_and(|d| d.can_add_annotation());
 
+        self.set_action_enabled("toggle-edit-mode", can_add_annotation);
+
         if can_add_annotation {
             let item = gio::MenuItem::new(None, None);
 
@@ -1378,16 +1380,24 @@ impl imp::PpsDocumentView {
     }
 
     pub fn cmd_toggle_edit_mode(&self) {
+        if !self
+            .document()
+            .and_dynamic_cast::<DocumentAnnotations>()
+            .is_ok_and(|document| document.can_add_annotation())
+        {
+            return;
+        }
+
+        let Some(annotation_model) = self.model.annotation_model() else {
+            return;
+        };
+
         let editing_state = self.model.annotation_editing_state();
         // Just toggle the state - the notify signal will handle UI updates
         if editing_state == papers_view::AnnotationEditingState::NONE
             || editing_state == papers_view::AnnotationEditingState::STAMP
         {
-            let is_text = self
-                .model
-                .annotation_model()
-                .map(|m| m.tool() == AnnotationTool::Text)
-                .unwrap_or(false);
+            let is_text = annotation_model.tool() == AnnotationTool::Text;
 
             if is_text {
                 self.model.set_annotation_editing_state(
