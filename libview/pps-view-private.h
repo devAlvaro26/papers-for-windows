@@ -108,6 +108,7 @@ typedef struct _PpsViewPrivate {
 	PendingScroll pending_scroll;
 	gboolean needs_scrolling_to_current_page;
 	gboolean keep_scroll_of_current_page;
+	gboolean animate_page_change;
 
 	/* Animation for scrolling with keys */
 	AdwAnimation *scroll_animation_vertical;

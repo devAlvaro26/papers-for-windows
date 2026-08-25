@@ -513,6 +513,35 @@ scroll_to_view_point (PpsView *view,
 }
 
 static void
+animate_scroll_to_current_position (PpsView *view,
+                                     gdouble from_x,
+                                     gdouble from_y)
+{
+	PpsViewPrivate *priv = GET_PRIVATE (view);
+	gdouble to_x = gtk_adjustment_get_value (priv->hadjustment);
+	gdouble to_y = gtk_adjustment_get_value (priv->vadjustment);
+
+	priv->pending_scroll_animation = TRUE;
+	gtk_adjustment_set_value (priv->hadjustment, from_x);
+	gtk_adjustment_set_value (priv->vadjustment, from_y);
+	priv->pending_scroll_animation = FALSE;
+
+	if (from_x != to_x) {
+		adw_animation_reset (priv->scroll_animation_horizontal);
+		adw_timed_animation_set_value_from (ADW_TIMED_ANIMATION (priv->scroll_animation_horizontal), from_x);
+		adw_timed_animation_set_value_to (ADW_TIMED_ANIMATION (priv->scroll_animation_horizontal), to_x);
+		adw_animation_play (priv->scroll_animation_horizontal);
+	}
+
+	if (from_y != to_y) {
+		adw_animation_reset (priv->scroll_animation_vertical);
+		adw_timed_animation_set_value_from (ADW_TIMED_ANIMATION (priv->scroll_animation_vertical), from_y);
+		adw_timed_animation_set_value_to (ADW_TIMED_ANIMATION (priv->scroll_animation_vertical), to_y);
+		adw_animation_play (priv->scroll_animation_vertical);
+	}
+}
+
+static void
 pps_view_queue_rescroll_to_current_page (PpsView *view)
 {
 	PpsViewPrivate *priv = GET_PRIVATE (view);
@@ -526,7 +555,13 @@ pps_view_adjustment_to_page_position (PpsView *view)
 {
 	PpsViewPrivate *priv = GET_PRIVATE (view);
 	GdkRectangle page_area, visible_area;
-	gdouble x, y;
+	gdouble x, y, old_x, old_y;
+	gboolean animate;
+
+	old_x = gtk_adjustment_get_value (priv->hadjustment);
+	old_y = gtk_adjustment_get_value (priv->vadjustment);
+	animate = priv->animate_page_change;
+	priv->animate_page_change = FALSE;
 
 	pps_view_get_page_extents (view, priv->current_page, &page_area);
 	x = MAX (0, page_area.x - priv->spacing);
@@ -539,6 +574,8 @@ pps_view_adjustment_to_page_position (PpsView *view)
 
 	if (!priv->keep_scroll_of_current_page || !gdk_rectangle_intersect (&page_area, &visible_area, NULL)) {
 		scroll_to_view_point (view, x, y);
+		if (animate)
+			animate_scroll_to_current_position (view, old_x, old_y);
 	}
 	priv->keep_scroll_of_current_page = FALSE;
 }
@@ -547,11 +584,16 @@ static void
 pps_view_scroll_to_doc_point (PpsView *view, PpsDocumentPoint *doc_point)
 {
 	PpsViewPrivate *priv = GET_PRIVATE (view);
-	gdouble x, y;
+	gdouble x, y, old_x, old_y;
+	gint old_page = priv->current_page;
 
 	transform_page_point_to_view_point (view, doc_point->page_index, &doc_point->point_on_page, &x, &y);
+	old_x = gtk_adjustment_get_value (priv->hadjustment);
+	old_y = gtk_adjustment_get_value (priv->vadjustment);
 	priv->current_page = doc_point->page_index;
 	scroll_to_view_point (view, x, y);
+	if (old_page >= 0 && ABS (doc_point->page_index - old_page) < 5)
+		animate_scroll_to_current_position (view, old_x, old_y);
 
 	/*
 	 * When the adjustments' values don't change due to multiple doc points
@@ -6202,6 +6244,9 @@ pps_view_scroll_to_page (PpsView *view, gint page)
 {
 	PpsViewPrivate *priv = GET_PRIVATE (view);
 
+	priv->animate_page_change = !priv->keep_scroll_of_current_page &&
+	                            priv->current_page >= 0 &&
+	                            ABS (page - priv->current_page) < 5;
 	priv->current_page = page;
 	pps_view_queue_rescroll_to_current_page (view);
 }
