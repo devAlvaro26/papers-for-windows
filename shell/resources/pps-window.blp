@@ -43,17 +43,37 @@ template $PpsWindow: Adw.ApplicationWindow {
             title: _("Open a Document");
             description: _("Drag and drop documents here");
 
-            child: Button open_button {
-              halign: center;
-              action-name: "win.open";
-              label: _("_Open…");
-              use-underline: true;
-              tooltip-text: C_("tooltip", "Open a Document");
+            child: Box {
+              orientation: vertical;
+              spacing: 12;
 
-              styles [
-                "suggested-action",
-                "pill",
-              ]
+              Button open_button {
+                halign: center;
+                action-name: "win.open";
+                label: _("_Open…");
+                use-underline: true;
+                tooltip-text: C_("tooltip", "Open a Document");
+
+                styles [
+                  "suggested-action",
+                  "pill",
+                ]
+              }
+
+              Label recent_label {
+                label: _("Recent Documents");
+                halign: start;
+                visible: false;
+                styles [
+                  "heading",
+                ]
+              }
+
+              ListBox recent_list {
+                selection-mode: none;
+                visible: false;
+                valign: start;
+              }
             };
           };
         };

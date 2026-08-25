@@ -42,6 +42,10 @@ mod imp {
         #[template_child]
         pub(super) error_page: TemplateChild<adw::StatusPage>,
         #[template_child]
+        pub(super) recent_label: TemplateChild<gtk::Label>,
+        #[template_child]
+        pub(super) recent_list: TemplateChild<gtk::ListBox>,
+        #[template_child]
         pub(super) password_view: TemplateChild<PpsPasswordView>,
         #[template_child]
         pub(super) document_view: TemplateChild<PpsDocumentView>,
@@ -114,6 +118,7 @@ mod imp {
 
             self.setup_actions();
             self.setup_window_size();
+            self.setup_recent_documents();
 
             self.obj()
                 .change_action_state("night-mode", &self.settings.boolean("night-mode").into());
@@ -511,6 +516,52 @@ mod imp {
             ];
 
             self.obj().add_action_entries(actions);
+        }
+
+        fn setup_recent_documents(&self) {
+            let manager = gtk::RecentManager::default();
+            let manager_for_update = manager.clone();
+            let label = self.recent_label.clone();
+            let list = self.recent_list.clone();
+
+            let update = move || {
+                while let Some(child) = list.first_child() {
+                    list.remove(&child);
+                }
+
+                let mut count = 0;
+                for info in manager_for_update.items() {
+                    if count == 5 || !info.exists() {
+                        continue;
+                    }
+
+                    let uri = info.uri();
+                    let button = gtk::Button::builder()
+                        .label(info.display_name())
+                        .halign(gtk::Align::Fill)
+                        .build();
+                    button.set_tooltip_text(Some(&uri));
+                    button.add_css_class("flat");
+
+                    button.connect_clicked(glib::clone!(
+                        #[weak(rename_to = obj)]
+                        self,
+                        move |_| {
+                            obj.open(&gio::File::for_uri(&uri), None, None);
+                        }
+                    ));
+
+                    list.append(&button);
+                    count += 1;
+                }
+
+                let has_recent_documents = count > 0;
+                label.set_visible(has_recent_documents);
+                list.set_visible(has_recent_documents);
+            };
+
+            update();
+            manager.connect_changed(move |_| update());
         }
 
         fn show_error(&self, error: Option<&glib::Error>) {
