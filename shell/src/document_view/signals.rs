@@ -210,6 +210,7 @@ impl imp::PpsDocumentView {
 
     // view
     fn launch_external_uri(&self, action: &LinkAction) {
+        #[cfg(not(target_os = "windows"))]
         let context = self.obj().display().app_launch_context();
         let uri = action.uri().unwrap();
         let file = gio::File::for_uri(&uri);
@@ -231,6 +232,23 @@ impl imp::PpsDocumentView {
 
         debug!("Launch external uri: {uri}");
 
+        #[cfg(target_os = "windows")]
+        {
+            if let Err(e) = std::process::Command::new("explorer.exe")
+                .arg(&uri)
+                .spawn()
+            {
+                self.error_message(
+                    Some(&glib::Error::new(
+                        gio::IOErrorEnum::Failed,
+                        &e.to_string(),
+                    )),
+                    &gettext("Unable to open external link"),
+                );
+            }
+        }
+
+        #[cfg(not(target_os = "windows"))]
         glib::spawn_future_local(glib::clone!(
             #[weak(rename_to = obj)]
             self,
