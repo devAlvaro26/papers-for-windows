@@ -368,12 +368,21 @@ pps_file_copy_metadata (const char *from,
 #endif
 }
 
+static gboolean
+is_generic_content_type (const gchar *content_type)
+{
+	return content_type == NULL ||
+	       g_ascii_strcasecmp (content_type, "application/octet-stream") == 0;
+}
+
 static gchar *
 get_mime_type_from_uri (const gchar *uri, GError **error)
 {
 	g_autoptr (GFile) file = NULL;
 	g_autoptr (GFileInfo) file_info = NULL;
 	const gchar *content_type;
+	g_autofree gchar *basename = NULL;
+	g_autofree gchar *guessed_content_type = NULL;
 	gchar *mime_type = NULL;
 
 	file = g_file_new_for_uri (uri);
@@ -384,9 +393,20 @@ get_mime_type_from_uri (const gchar *uri, GError **error)
 		return NULL;
 
 	content_type = g_file_info_get_content_type (file_info);
-	if (content_type != NULL) {
+	if (content_type != NULL && !is_generic_content_type (content_type)) {
 		mime_type = g_content_type_get_mime_type (content_type);
 	}
+
+	if (mime_type == NULL) {
+		basename = g_file_get_basename (file);
+		if (basename != NULL) {
+			guessed_content_type = g_content_type_guess (basename, NULL, 0, NULL);
+			if (!is_generic_content_type (guessed_content_type)) {
+				mime_type = g_content_type_get_mime_type (guessed_content_type);
+			}
+		}
+	}
+
 	if (mime_type == NULL) {
 		g_set_error_literal (error, G_IO_ERROR, G_IO_ERROR_FAILED,
 		                     _ ("Unknown MIME Type"));
@@ -403,10 +423,12 @@ get_mime_type_from_data (const gchar *uri, GError **error)
 	gssize size_read;
 	guchar buffer[1024];
 	gboolean retval;
+	g_autofree gchar *basename = NULL;
 	g_autofree gchar *content_type = NULL;
 	gchar *mime_type = NULL;
 
 	file = g_file_new_for_uri (uri);
+	basename = g_file_get_basename (file);
 
 	input_stream = g_file_read (file, NULL, error);
 	if (!input_stream)
@@ -421,9 +443,13 @@ get_mime_type_from_data (const gchar *uri, GError **error)
 	if (!retval)
 		return NULL;
 
-	content_type = g_content_type_guess (NULL, /* no filename */
-	                                     buffer, size_read,
-	                                     NULL);
+	content_type = g_content_type_guess (basename, buffer, size_read, NULL);
+	if (is_generic_content_type (content_type)) {
+		g_autofree gchar *fallback_content_type = NULL;
+		fallback_content_type = g_content_type_guess (basename, NULL, 0, NULL);
+		if (!is_generic_content_type (fallback_content_type))
+			content_type = g_steal_pointer (&fallback_content_type);
+	}
 	if (content_type == NULL) {
 		g_set_error_literal (error, G_IO_ERROR, G_IO_ERROR_FAILED,
 		                     _ ("Unknown MIME Type"));
