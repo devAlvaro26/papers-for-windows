@@ -7,6 +7,7 @@ use git_version::git_version;
 use std::env;
 use std::ffi::OsString;
 use std::ops::ControlFlow;
+use std::sync::atomic::{AtomicBool, Ordering};
 
 const RESOURCES_DATA: &[u8] = include_bytes!(env!("PAPERS_RESOURCES_FILE"));
 
@@ -41,7 +42,6 @@ mod imp {
             gio::resources_register(&resources);
 
             self.parent_startup();
-            papers_document::init();
 
             // Manually set name and icon
             glib::set_application_name(&gettext("Document Viewer"));
@@ -51,7 +51,7 @@ mod imp {
         }
 
         fn shutdown(&self) {
-            papers_document::shutdown();
+            self.shutdown_document_backend();
             Job::scheduler_wait();
             self.parent_shutdown();
         }
@@ -132,6 +132,30 @@ mod imp {
     }
 
     impl PpsApplication {
+        fn ensure_document_backend(&self) -> bool {
+            static DOCUMENT_BACKEND_INITIALIZED: AtomicBool = AtomicBool::new(false);
+
+            if DOCUMENT_BACKEND_INITIALIZED.load(Ordering::Acquire) {
+                return true;
+            }
+
+            if !papers_document::init() {
+                glib::g_warning!("", "Failed to initialize the Papers document backend");
+                return false;
+            }
+
+            DOCUMENT_BACKEND_INITIALIZED.store(true, Ordering::Release);
+            true
+        }
+
+        fn shutdown_document_backend(&self) {
+            static DOCUMENT_BACKEND_INITIALIZED: AtomicBool = AtomicBool::new(false);
+
+            if DOCUMENT_BACKEND_INITIALIZED.swap(false, Ordering::AcqRel) {
+                papers_document::shutdown();
+            }
+        }
+
         fn parse_dest(&self, uri: &str) -> Option<papers_document::LinkDest> {
             let Ok((_, _, _, _, _, _, Some(frag))) = glib::Uri::split(uri, glib::UriFlags::ENCODED)
             else {
@@ -165,6 +189,10 @@ mod imp {
             dest: Option<&papers_document::LinkDest>,
             mode: Option<WindowRunMode>,
         ) {
+            if !self.ensure_document_backend() {
+                return;
+            }
+
             let obj = self.obj();
             let mut n_window = 0;
             let mut window = None;

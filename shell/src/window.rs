@@ -118,7 +118,14 @@ mod imp {
 
             self.setup_actions();
             self.setup_window_size();
-            self.setup_recent_documents();
+
+            glib::idle_add_local_once(glib::clone!(
+                #[weak(rename_to = obj)]
+                self,
+                move || {
+                    obj.setup_recent_documents();
+                }
+            ));
 
             self.obj()
                 .change_action_state("night-mode", &self.settings.boolean("night-mode").into());

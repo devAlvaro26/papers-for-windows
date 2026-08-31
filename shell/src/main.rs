@@ -54,10 +54,12 @@ fn setup_environment() {
             std::env::set_var("DBUS_SESSION_BUS_ADDRESS", "none");
         }
     }
-    // Force GTK file chooser fallback and in-memory settings storage on Windows environments without portals/dconf
+    // Force GTK file chooser fallback and in-memory settings storage on Windows environments without portals/dconf.
+    // Also skip costly GSK renderer probing on startup and prefer the GL path used by the bundled Windows GTK stack.
     unsafe {
         std::env::set_var("GTK_USE_PORTAL", "0");
         std::env::set_var("GSETTINGS_BACKEND", "memory");
+        std::env::set_var("GSK_RENDERER", "gl");
     }
 }
 
