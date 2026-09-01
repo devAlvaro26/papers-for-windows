@@ -275,10 +275,25 @@ _pps_document_factory_init (void)
 #endif
 
 	if (!pps_backends_dir) {
-		pps_backends_dir = g_strdup (PPS_BACKENDSDIR);
+		g_autofree gchar *cwd = g_get_current_dir ();
+		g_autofree gchar *build_dir = g_build_filename (cwd, "build", "libdocument", "backend", NULL);
+		g_autofree gchar *source_dir = g_build_filename (cwd, "libdocument", "backend", NULL);
+
+		if (g_file_test (build_dir, G_FILE_TEST_IS_DIR))
+			pps_backends_dir = g_strdup (build_dir);
+		else if (g_file_test (source_dir, G_FILE_TEST_IS_DIR))
+			pps_backends_dir = g_strdup (source_dir);
+		else
+			pps_backends_dir = g_strdup (PPS_BACKENDSDIR);
 	}
 
 	pps_backends_list = _pps_backend_info_load_from_dir (pps_backends_dir);
+
+	if (!pps_backends_list && pps_backends_dir && strcmp (pps_backends_dir, PPS_BACKENDSDIR) != 0) {
+		g_free (pps_backends_dir);
+		pps_backends_dir = g_strdup (PPS_BACKENDSDIR);
+		pps_backends_list = _pps_backend_info_load_from_dir (pps_backends_dir);
+	}
 
 	return pps_backends_list != NULL;
 }
